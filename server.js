@@ -1,22 +1,27 @@
 // server.js
 const http = require("http");
 const socketIo = require("socket.io");
+const { validatingTheClientId } = require("./service/printdesk");
 
-const validatingTheClientId = (printDeskId) => {
-  const registerdArr = [
-    { frontendId: "3jkfsjl", printdeskIds: "1111" },
-    { frontendId: "3jkfsj2", printdeskIds: "1111" },
-    { frontendId: "3jkfsj3", printdeskIds: "2222" }
-  ];
+// const validatingTheClientId = (printDeskId) => {
+//   const registerdArr = [
+//     { frontendId: "3jkfsjl", printdeskIds: "1111" },
+//     { frontendId: "3jkfsj2", printdeskIds: "1111" },
+//     { frontendId: "3jkfsj3", printdeskIds: "2222" }
+//   ];
 
-  const matchedClients = registerdArr
-    .filter(item => item.printdeskIds === printDeskId)
-    .map(item => item.frontendId);
+//   const matchedClients = registerdArr
+//     .filter(item => item.printdeskIds === printDeskId)
+//     .map(item => item.frontendId);
 
-  return matchedClients;
-};
+//   return matchedClients;
+// };
 
-
+// (async () => {
+//   const printDeskId = "1111"; // Example printDeskId
+//   const clients = await validatingTheClientId(printDeskId);
+//   console.log(clients); // This will log the frontendIds for the matching printDeskId
+// })();
 
 // Create an HTTP server
 const server = http.createServer((req, res) => {
@@ -41,7 +46,9 @@ let printdeskIds = [];
 let frontendPrintDeskIds = [];
 let frontendIds = [];
 //{1234:"frontend",1212:"printApp"}
+let pulseIntervals = {};
 
+let printerList = []; //[{...printerList,printDeskId}]
 
 const handleSocketError = (socket, error) => {
   console.error(`Error on socket ${socket.id}:`, error.message || error);
@@ -60,109 +67,158 @@ io.on("connection", (socket) => {
       }
 
       frontendIds.push({ frontendId, socketId: socket.id });
-      console.log(`Frontend Id ${frontendId} has joined with ID: ${socket.id}, frontendIds: ${JSON.stringify(frontendIds)}`);
+      console.log(
+        `Frontend Id ${frontendId} has joined with ID: ${
+          socket.id
+        }, frontendIds: ${JSON.stringify(frontendIds)}`
+      );
 
+      const frontendPrintdesk = frontendPrintDeskIds.find(
+        (fd) => fd.frontendId === frontendId
+      );
 
-      const frontendPrintdesk = frontendPrintDeskIds.find(fd => fd.frontendId === frontendId);
-
-      if(frontendPrintdesk?.printDeskId){
+      if (frontendPrintdesk?.printDeskId) {
         io.to(socket.id).emit("printConnectionStatus", {
           sender: socket.id,
           status: "printdeskConnected",
         });
-      }
-      else{
+      } else {
         io.to(socket.id).emit("printConnectionStatus", {
           sender: socket.id,
-          status: "connected",
+          status: "printdeskNotAvailable",
         });
       }
-    
+      console.log("printerList:", printerList);
+      //load printer list into the related frontend if the printer list exists
+     // if (printerList.length===0) {
+        
+        const frontdesk = frontendIds.find(
+          (f) => f.socketId === socket.id
+        );
 
- 
-
-    } catch (error) {
-      handleSocketError(socket, error);
-    }
-  });
-
-  socket.on("connectPrintDeskToTheService", ({ printDeskId, message }) => {
-    try {
-      console.log("printDeskId", printDeskId);
-      const result = validatingTheClientId(printDeskId);
-      console.log("validatingTheClientId", result);
-
-      if (result.length === 0) {
-        io.to(socket.id).emit("message", {
-          sender: socket.id,
-          message: "Printdesk id is not found.",
-        });
-        socket.disconnect(true); // Disconnects the client immediately
-        return;
-      }
-
-      const index = printdeskIds.findIndex((f) => f.printDeskId === printDeskId);
-      if (index !== -1) {
-        printdeskIds.splice(index, 1);
-      }
-
-      printdeskIds.push({ printDeskId, socketId: socket.id });
-      console.log(`${printDeskId} has joined with ID: ${socket.id}, printdeskIds: ${JSON.stringify(printdeskIds)}`);
-
-      result.forEach((frontendId) => {
-        console.log(`element: ${JSON.stringify(frontendId)}`);
-        const index = frontendPrintDeskIds.findIndex((f) => f.frontendId === frontendId);
-        if (index !== -1) {
-          frontendPrintDeskIds.splice(index, 1);
-          console.log(`${frontendId} was removed.`);
-        }
-
-        frontendPrintDeskIds.push({ printDeskId, frontendId });
-      
-        const frontendPrintdesk = frontendPrintDeskIds.find(fd => fd.printDeskId === printDeskId);
-
-        if(frontendPrintdesk?.frontendId){
-
-const frontendSocket=frontendIds.find(f=>f.frontendId===frontendId);
-console.log(`frontendSocket: ${frontendSocket.socketId}`);
+        const printdeskFrontdesk = frontendPrintDeskIds.find(
+          (fp) => fp.frontendId === frontdesk.frontendId
+        );
+        console.log("printdeskFrontdesk:", printdeskFrontdesk);
 
 
-          io.to(frontendSocket.socketId).emit("printConnectionStatus", {
+        if (printdeskFrontdesk) {
+
+          const printdesk = printdeskIds.find(
+            (f) => f.printDeskId === printdeskFrontdesk.printDeskId
+          );
+
+          io.to(printdesk.socketId).emit("bringPrinterListFromPrintdesk", {
             sender: socket.id,
-            status: "printdeskConnected",
+            status: "PrinterList Loaded"
           });
         }
-     
-
-
-
-
-      });
-
-      console.log(`frontendPrintDeskIds: ${JSON.stringify(frontendPrintDeskIds)}`);
-
-      io.to(socket.id).emit("message", {
-        sender: socket.id,
-        message: "Connected Successfully...",
-      });
+    //  }
     } catch (error) {
       handleSocketError(socket, error);
     }
   });
 
-  socket.on("sendPrint", ({ printDeskId, printer, payload }) => {
+  socket.on(
+    "connectPrintDeskToTheService",
+    async ({ printDeskId, message }) => {
+      try {
+        const result = await validatingTheClientId(printDeskId);
+        console.log("validatingTheClientId", result);
+        if (result.length === 0) {
+          io.to(socket.id).emit("message", {
+            sender: socket.id,
+            message: "Printdesk id is not found.",
+          });
+          socket.disconnect(true); // Disconnects the client immediately
+          return;
+        }
+
+        const index = printdeskIds.findIndex(
+          (f) => f.printDeskId === printDeskId
+        );
+        if (index !== -1) {
+          printdeskIds.splice(index, 1);
+        }
+
+        printdeskIds.push({ printDeskId, socketId: socket.id });
+        console.log(
+          `${printDeskId} has joined with ID: ${
+            socket.id
+          }, printdeskIds: ${JSON.stringify(printdeskIds)}`
+        );
+
+        result.forEach((frontendId) => {
+          const index = frontendPrintDeskIds.findIndex(
+            (f) => f.frontendId === frontendId
+          );
+          if (index !== -1) {
+            frontendPrintDeskIds.splice(index, 1);
+            console.log(`${frontendId} was removed.`);
+          }
+          frontendPrintDeskIds.push({ printDeskId, frontendId });
+        });
+
+        const frontendsByPrintdesk = frontendPrintDeskIds.filter(
+          (fd) => fd.printDeskId === printDeskId
+        );
+
+        frontendsByPrintdesk.forEach((element) => {
+          const frontendSocket = frontendIds.find(
+            (f) => f.frontendId === element.frontendId
+          );
+          if (frontendSocket) {
+            io.to(frontendSocket.socketId).emit("printConnectionStatus", {
+              sender: socket.id,
+              status: "printdeskConnected",
+            });
+          }
+        });
+
+        // Start sending pulse messages
+        if (pulseIntervals[socket.id]) {
+          clearInterval(pulseIntervals[socket.id]);
+        }
+        pulseIntervals[socket.id] = setInterval(() => {
+          const frontends = frontendsByPrintdesk.map((fd) =>
+            frontendIds.find((f) => f.frontendId === fd.frontendId)
+          );
+          frontends.forEach((frontendSocket) => {
+            if (frontendSocket) {
+              io.to(frontendSocket.socketId).emit("pulse", {
+                sender: socket.id,
+                status: "printdeskAvailable",
+              });
+            }
+          });
+        }, 5000);
+
+        io.to(socket.id).emit("connectPrintDeskToTheServiceAck", {
+          sender: socket.id,
+          message: "Connected Successfully...",
+        });
+      } catch (error) {
+        handleSocketError(socket, error);
+      }
+    }
+  );
+
+  socket.on("sendPrint", ({ printDeskId, printerName,receiptSize, receiptData }) => {
     try {
       const recipient = printdeskIds.find((p) => p.printDeskId === printDeskId);
       if (recipient) {
-        console.log(`Socket ID for printDeskId ${printDeskId} is: ${recipient.socketId}`);
-        io.to(recipient.socketId).emit("print", { sender: socket.id, printer, payload });
+        io.to(recipient.socketId).emit("print", {
+          sender: socket.id,
+          printerName,
+          receiptSize,
+          receiptData,
+        });
         io.to(socket.id).emit("printRespond", {
           sender: socket.id,
           message: "Print sent",
         });
       } else {
-
-        const message=`No matching printDeskId found for ${printDeskId}`;
+        const message = `No matching printDeskId found for ${printDeskId}`;
         io.to(socket.id).emit("printRespond", {
           sender: socket.id,
           message: message,
@@ -174,9 +230,50 @@ console.log(`frontendSocket: ${frontendSocket.socketId}`);
     }
   });
 
+  socket.on("printList", (data) => {
+    // Handle the received printer list
+    console.log("printdeskids:", printdeskIds);
+    console.log("Receive from socket:", socket.id);
+    const printers = data.printers;
+    console.log("Received data:", data);
+
+    const printdesk = printdeskIds.find((fd) => fd.socketId === socket.id);
+    if (printdesk) {
+      console.log("printdesk:", printdesk);
+      const frontendPrintDesk = frontendPrintDeskIds.find(
+        (f) => f.printDeskId === printdesk.printDeskId
+      );
+      const frontendSocket = frontendIds.find(
+        (f) => f.frontendId === frontendPrintDesk.frontendId
+      );
+
+      const index = printerList.findIndex(
+        (f) => f.frontendId === frontendPrintDesk.frontendId
+      );
+      if (index !== -1) {
+        printerList.splice(index, 1);
+      }
+
+      printerList.push({ printers, frontendId: frontendPrintDesk.frontendId });
+
+      if (frontendSocket) {
+        io.to(frontendSocket.socketId).emit("loadPrinterListToFrontend", {
+          sender: socket.id,
+          status: "PrinterList Loaded",
+          printerList: printers,
+        });
+      }
+    }
+
+    // Respond back to the client if needed
+    socket.emit("message", {
+      sender: "Server",
+      message: "Printer list received successfully.",
+    });
+  });
+
   socket.on("privateMessage", ({ recipientId, message }) => {
     try {
-      console.log(`Private message to ${recipientId}: ${message}`);
       io.to(recipientId).emit("message", { sender: socket.id, message });
     } catch (error) {
       handleSocketError(socket, error);
@@ -185,37 +282,32 @@ console.log(`frontendSocket: ${frontendSocket.socketId}`);
 
   socket.on("disconnect", (reason) => {
     try {
-      console.log(`Socket ${socket.id} disconnected:`, reason);
+      console.log(`Socket ${socket.id} disconnected: ${reason}`);
+      clearInterval(pulseIntervals[socket.id]);
+      delete pulseIntervals[socket.id];
+
+      const printdesk = printdeskIds.find((fd) => fd.socketId === socket.id);
+      if (printdesk) {
+        const frontendPrintDesk = frontendPrintDeskIds.find(
+          (f) => f.printDeskId === printdesk.printDeskId
+        );
+        const frontendSocket = frontendIds.find(
+          (f) => f.frontendId === frontendPrintDesk.frontendId
+        );
+
+        if (frontendSocket) {
+          io.to(frontendSocket.socketId).emit("printConnectionStatus", {
+            sender: socket.id,
+            status: "printdeskNotAvailable",
+          });
+        }
+      }
 
       const index = printdeskIds.findIndex((f) => f.socketId === socket.id);
       if (index !== -1) {
         printdeskIds.splice(index, 1);
+        console.log(`${printdeskIds} was removed from printdeskIds.`);
       }
-
-
-
-      const printdesk = printdeskIds.find(fd => fd.socketId === socket.id);
-
-      if(printdesk){
-
-const frontendPrintDesk=frontendPrintDeskIds.find(f=>f.printDeskId===printdesk.printDeskId);
-
-const frontendSocket=frontendIds.find(f=>f.frontendId===frontendPrintDesk.frontendId);
-console.log(`frontendSocket:`, frontendSocket);
-
-if(frontendSocket){
-
-  io.to(frontendSocket.socketId).emit("printConnectionStatus", {
-    sender: socket.id,
-    status: "printdeskDisconnected",
-  });
-
-}
-     
-      }
-
-
-
     } catch (error) {
       handleSocketError(socket, error);
     }
@@ -239,9 +331,14 @@ server.on("error", (error) => {
   console.error("Server Error:", error.message || error);
 });
 
-// Graceful Shutdown
+// // Graceful Shutdown
 // process.on("SIGINT", () => {
 //   console.log("Server shutting down...");
+
+//   // Notify all connected clients
+//   io.emit("serverShutdown", { message: "The server is shutting down." });
+
+//   // Close the HTTP server and exit
 //   server.close(() => {
 //     console.log("HTTP server closed.");
 //     process.exit(0);
