@@ -16,5 +16,5 @@ datasource db {
 model RegisteredClient {
   id            String @id @default(auto()) @map("_id") @db.ObjectId
   frontendId    String
-  printdeskId   String
+  printdeskId   String @unique  // Add the @unique constraint here
 }
