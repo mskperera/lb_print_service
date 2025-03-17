@@ -384,6 +384,6 @@ routeArr.map((r) => {
 // });
 
 // Start the server on port 5112 with express
-server.listen(5112, () => {
-  console.log("Server is running on http://localhost:5112");
+server.listen(process.env.PORT, () => {
+  console.log(`Server is running on ${process.env.PORT}`);
 });
