@@ -1,7 +1,24 @@
 // server.js
+const express = require('express');
+const app = express();
+require('dotenv').config();
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
+
+const cors = require('cors');
+
+const morgan = require('morgan');
+const { readdirSync } = require('fs');
+
 const http = require("http");
 const socketIo = require("socket.io");
 const { validatingTheClientId } = require("./service/printdesk");
+
+
+//middlewares
+app.use(morgan('dev'));
+app.use(bodyParser.json());
+app.use(cookieParser());
 
 // const validatingTheClientId = (printDeskId) => {
 //   const registerdArr = [
@@ -24,10 +41,12 @@ const { validatingTheClientId } = require("./service/printdesk");
 // })();
 
 // Create an HTTP server
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end("Socket.IO Server\n");
-});
+// const server = http.createServer((req, res) => {
+//   res.writeHead(200, { "Content-Type": "text/plain" });
+//   res.end("Socket.IO Server\n");
+// });
+
+const server = http.createServer(app); // Use express with the same server for both
 
 // Initialize Socket.IO
 //const io = socketIo(server);
@@ -205,6 +224,7 @@ io.on("connection", (socket) => {
 
   socket.on("sendPrint", ({ printDeskId, printerName,receiptSize, receiptData }) => {
     try {
+      console.log('recipient printDeskId',printDeskId);
       const recipient = printdeskIds.find((p) => p.printDeskId === printDeskId);
       if (recipient) {
         io.to(recipient.socketId).emit("print", {
@@ -331,6 +351,19 @@ server.on("error", (error) => {
   console.error("Server Error:", error.message || error);
 });
 
+
+
+const routeArr = readdirSync('./routes');
+routeArr.map((r) => {
+  //import routes
+   const route = require('./routes/' + r);
+  //routes middlewares
+   app.use('/api', route);
+});
+
+
+
+
 // // Graceful Shutdown
 // process.on("SIGINT", () => {
 //   console.log("Server shutting down...");
@@ -346,6 +379,11 @@ server.on("error", (error) => {
 // });
 
 // Start the server on port 5112
+// server.listen(5112, () => {
+//   console.log("Server is running on http://localhost:5112");
+// });
+
+// Start the server on port 5112 with express
 server.listen(5112, () => {
   console.log("Server is running on http://localhost:5112");
 });
