@@ -50,15 +50,26 @@ const server = http.createServer(app); // Use express with the same server for b
 
 // Initialize Socket.IO
 //const io = socketIo(server);
-// Enable CORS for the server
+
+const corsOptions = {
+  origin: "*", // Allow all origins (you can specify allowed domains if needed)
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "Authorization", "my-custom-header"],
+  credentials: true, // Allow credentials if needed
+};
+
+app.use(cors(corsOptions));
+
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Allow all origins
+    origin: "*", // Allow all origins (or specify domains like "https://yourfrontend.com")
     methods: ["GET", "POST"],
-    allowedHeaders: ["my-custom-header"],
-    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "my-custom-header"], // Add Content-Type for security
+    credentials: true, // Allow credentials if using authentication
   },
+  transports: ["websocket", "polling"],
 });
+
 
 // Store clients' information
 let printdeskIds = [];
