@@ -369,7 +369,7 @@ routeArr.map((r) => {
   //import routes
    const route = require('./routes/' + r);
   //routes middlewares
-   app.use('/api', route);
+   app.use('/', route);
 });
 
 
