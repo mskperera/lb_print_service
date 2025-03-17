@@ -54,8 +54,8 @@ const server = http.createServer(app); // Use express with the same server for b
 const corsOptions = {
   origin: "*", // Allow all origins (you can specify allowed domains if needed)
   methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type", "Authorization", "my-custom-header"],
-  credentials: true, // Allow credentials if needed
+  //allowedHeaders: ["Content-Type", "Authorization", "my-custom-header"],
+  //credentials: true, // Allow credentials if needed
 };
 
 app.use(cors(corsOptions));
