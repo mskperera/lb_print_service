@@ -90,24 +90,28 @@ io.on("connection", (socket) => {
 
   socket.on("connectFrontendToTheService", ({ frontendId }) => {
     try {
-      console.log(" connectFrontendToTheService");
+   
       const index = frontendIds.findIndex((f) => f.frontendId === frontendId);
       if (index !== -1) {
         frontendIds.splice(index, 1);
       }
-
+ 
       frontendIds.push({ frontendId, socketId: socket.id });
-      console.log(
-        `Frontend Id ${frontendId} has joined with ID: ${
-          socket.id
-        }, frontendIds: ${JSON.stringify(frontendIds)}`
-      );
+    
+      console.log("connectFrontendToTheService -> frontendIds : ",frontendIds);
 
       const frontendPrintdesk = frontendPrintDeskIds.find(
         (fd) => fd.frontendId === frontendId
       );
+      console.log('printdeskIds:',printdeskIds);
+      const printdesk = printdeskIds.find(
+        (pd) => pd.printDeskId === frontendPrintdesk?.printDeskId
+      );
 
-      if (frontendPrintdesk?.printDeskId) {
+      console.log('printdesk:',printdesk);
+      console.log(" frontendPrintdesk : ",JSON.stringify(frontendPrintdesk));
+
+      if (printdesk) {
         io.to(socket.id).emit("printConnectionStatus", {
           sender: socket.id,
           status: "printdeskConnected",
@@ -154,7 +158,7 @@ io.on("connection", (socket) => {
     async ({ printDeskId, message }) => {
       try {
         const result = await validatingTheClientId(printDeskId);
-        console.log("validatingTheClientId", result);
+        console.log("connectPrintDeskToTheService ",printDeskId, result);
         if (result.length === 0) {
           io.to(socket.id).emit("message", {
             sender: socket.id,
@@ -172,10 +176,7 @@ io.on("connection", (socket) => {
         }
 
         printdeskIds.push({ printDeskId, socketId: socket.id });
-        console.log(
-          `${printDeskId} has joined with ID: ${
-            socket.id
-          }, printdeskIds: ${JSON.stringify(printdeskIds)}`
+        console.log(`Joined printdeskIds: ${JSON.stringify(printdeskIds)}`
         );
 
         result.forEach((frontendId) => {
@@ -317,6 +318,7 @@ io.on("connection", (socket) => {
       clearInterval(pulseIntervals[socket.id]);
       delete pulseIntervals[socket.id];
 
+      console.log('printdeskIds:',printdeskIds);
       const printdesk = printdeskIds.find((fd) => fd.socketId === socket.id);
       if (printdesk) {
         const frontendPrintDesk = frontendPrintDeskIds.find(
@@ -337,7 +339,7 @@ io.on("connection", (socket) => {
       const index = printdeskIds.findIndex((f) => f.socketId === socket.id);
       if (index !== -1) {
         printdeskIds.splice(index, 1);
-        console.log(`${printdeskIds} was removed from printdeskIds.`);
+        console.log(`${printdeskIds} was removed from printdeskIds:oo `);
       }
     } catch (error) {
       handleSocketError(socket, error);
